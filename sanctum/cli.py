@@ -25,6 +25,26 @@ def _read(path):
         return f.read()
 
 
+def _load_tools(path):
+    """Load an OpenAI-style {"tools": [...]} file. Returns the tools array."""
+    if not path:
+        return None
+    obj = json.loads(_read(path))
+    if isinstance(obj, dict) and isinstance(obj.get("tools"), list):
+        return obj["tools"]
+    if isinstance(obj, list):
+        return obj
+    raise ValueError("--tools must be {\"tools\": [...]} or a bare [...] array")
+
+
+def _load_cases(path):
+    from .generator import _validate
+    cases = json.loads(_read(path))
+    if not isinstance(cases, list) or not cases:
+        raise ValueError("no cases in %s" % path)
+    return _validate(cases)
+
+
 def _write_json(path, obj):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(obj, f, ensure_ascii=False, indent=2)
@@ -47,6 +67,10 @@ def cmd_generate(args):
         cases = load_seed_cases(category=args.category)
         _write_json(args.out, cases)
         return 0
+    if not args.system_prompt or not args.tools:
+        print("generate needs --system-prompt and --tools (or use --no-llm)",
+              file=sys.stderr)
+        return 2
     system_prompt_text = _read(args.system_prompt)
     tools_schema_text = _read(args.tools)
     try:
@@ -62,14 +86,21 @@ def cmd_generate(args):
 
 
 def cmd_run(args):
-    cases = json.loads(_read(args.cases))
-    if not isinstance(cases, list) or not cases:
-        print("no cases in %s" % args.cases, file=sys.stderr)
+    try:
+        cases = _load_cases(args.cases)
+    except (ValueError, OSError) as e:
+        print("bad cases file: %s" % e, file=sys.stderr)
+        return 1
+    try:
+        tools = _load_tools(args.tools)
+    except (ValueError, OSError) as e:
+        print("bad tools file: %s" % e, file=sys.stderr)
         return 1
     system_prompt = _read(args.target_system_prompt) if args.target_system_prompt else None
     results = run_all(cases, args.backend_url, args.model,
                       api_key=_api_key(args), timeout=args.timeout,
-                      workers=args.workers, system_prompt=system_prompt)
+                      workers=args.workers, system_prompt=system_prompt,
+                      tools=tools)
     failed = sum(1 for r in results if not r["ok"])
     _write_json(args.out, results)
     print("%d/%d transport failures" % (failed, len(results)))
@@ -81,7 +112,8 @@ def cmd_grade(args):
     graded = grade_results(results)
     _write_json(args.out, graded)
     s = summarize(graded)["verdicts"]
-    print("BLOCKED=%d BYPASSED=%d UNCLEAR=%d" % (s["BLOCKED"], s["BYPASSED"], s["UNCLEAR"]))
+    print("BLOCKED=%d BYPASSED=%d UNCLEAR=%d ERROR=%d"
+          % (s["BLOCKED"], s["BYPASSED"], s["UNCLEAR"], s["ERROR"]))
     return 0
 
 
@@ -116,8 +148,10 @@ def build_parser():
     sub = p.add_subparsers(dest="cmd", required=True)
 
     g = sub.add_parser("generate", help="create tailored test cases")
-    g.add_argument("--system-prompt", required=True, help="file: target agent system prompt")
-    g.add_argument("--tools", required=True, help="file: target tool schema (JSON)")
+    g.add_argument("--system-prompt", help="file: target agent system prompt "
+                   "(required unless --no-llm)")
+    g.add_argument("--tools", help="file: target tool schema (JSON) "
+                   "(required unless --no-llm)")
     g.add_argument("--out", default="cases.json", help="output JSON (default: %(default)s)")
     g.add_argument("--count", type=int, default=20)
     g.add_argument("--no-llm", action="store_true",
@@ -132,6 +166,10 @@ def build_parser():
     r.add_argument("--workers", type=int, default=4)
     r.add_argument("--target-system-prompt",
                    help="file: system prompt to wrap around payloads (optional)")
+    r.add_argument("--tools",
+                   help='file: {"tools": [...]} OpenAI-style tool definitions '
+                        "to send with each request (required for tool_calls "
+                        "to be emitted by real backends)")
     _common_backend(r)
     r.set_defaults(func=cmd_run)
 

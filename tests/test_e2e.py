@@ -47,5 +47,15 @@ try:
     if bad:
         print("MISMATCH:", bad); sys.exit(1)
     print("ALL VERDICTS AS EXPECTED")
+
+    # transport failure -> ERROR verdict (not UNCLEAR)
+    cli("run", "--cases", "/tmp/t-cases.json",
+        "--backend-url", "http://127.0.0.1:18299/v1",
+        "--model", "stub", "--out", "/tmp/t-results2.json", "--workers", "5",
+        "--timeout", "5")
+    cli("grade", "--results", "/tmp/t-results2.json", "--out", "/tmp/t-graded2.json")
+    graded2 = json.load(open("/tmp/t-graded2.json"))
+    assert all(g["verdict"] == "ERROR" for g in graded2), graded2
+    print("TRANSPORT FAILURES GRADED AS ERROR")
 finally:
     server.terminate()

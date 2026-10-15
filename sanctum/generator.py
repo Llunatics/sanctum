@@ -28,12 +28,22 @@ def load_generation_prompt():
 
 
 def _extract_json_array(text):
-    """Extract the first top-level JSON array from model output."""
+    """Extract the first top-level JSON array from model output.
+
+    Uses raw_decode from the first '[' so trailing prose (even with
+    brackets, e.g. "[Note: ...]") cannot corrupt the parse.
+    """
+    import json as _json
     start = text.find("[")
-    end = text.rfind("]")
-    if start == -1 or end == -1 or end <= start:
+    if start == -1:
         raise ValueError("no JSON array found in model output")
-    return json.loads(text[start:end + 1])
+    try:
+        arr, _ = _json.JSONDecoder().raw_decode(text[start:])
+    except _json.JSONDecodeError as e:
+        raise ValueError("could not parse JSON array: %s" % e)
+    if not isinstance(arr, list):
+        raise ValueError("parsed JSON is not an array")
+    return arr
 
 
 def _validate(cases):
