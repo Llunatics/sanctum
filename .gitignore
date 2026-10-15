@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.json
+!sanctum/data/seed_cases.json
+*.md
+!README.md
+.env
