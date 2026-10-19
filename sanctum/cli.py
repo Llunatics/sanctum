@@ -65,11 +65,18 @@ def _common_backend(p):
 def cmd_generate(args):
     if args.no_llm:
         cases = load_seed_cases(category=args.category)
+        if not cases:
+            print("no seed cases for category %r" % args.category,
+                  file=sys.stderr)
+            return 2
         _write_json(args.out, cases)
         return 0
     if not args.system_prompt or not args.tools:
         print("generate needs --system-prompt and --tools (or use --no-llm)",
               file=sys.stderr)
+        return 2
+    if args.count < 1:
+        print("--count must be >= 1", file=sys.stderr)
         return 2
     system_prompt_text = _read(args.system_prompt)
     tools_schema_text = _read(args.tools)
@@ -96,7 +103,11 @@ def cmd_run(args):
     except (ValueError, OSError) as e:
         print("bad tools file: %s" % e, file=sys.stderr)
         return 1
-    system_prompt = _read(args.target_system_prompt) if args.target_system_prompt else None
+    try:
+        system_prompt = _read(args.target_system_prompt) if args.target_system_prompt else None
+    except OSError as e:
+        print("bad target system prompt file: %s" % e, file=sys.stderr)
+        return 1
     results = run_all(cases, args.backend_url, args.model,
                       api_key=_api_key(args), timeout=args.timeout,
                       workers=args.workers, system_prompt=system_prompt,
@@ -107,8 +118,21 @@ def cmd_run(args):
     return 0
 
 
+def _load_json_file(path, what):
+    try:
+        return json.loads(_read(path))
+    except OSError as e:
+        raise ValueError("cannot read %s %s: %s" % (what, path, e))
+    except json.JSONDecodeError as e:
+        raise ValueError("bad JSON in %s %s: %s" % (what, path, e))
+
+
 def cmd_grade(args):
-    results = json.loads(_read(args.results))
+    try:
+        results = _load_json_file(args.results, "results")
+    except ValueError as e:
+        print("grade failed: %s" % e, file=sys.stderr)
+        return 1
     graded = grade_results(results)
     _write_json(args.out, graded)
     s = summarize(graded)["verdicts"]
@@ -118,7 +142,11 @@ def cmd_grade(args):
 
 
 def cmd_report(args):
-    graded = json.loads(_read(args.graded))
+    try:
+        graded = _load_json_file(args.graded, "graded results")
+    except ValueError as e:
+        print("report failed: %s" % e, file=sys.stderr)
+        return 1
     md = markdown_report(graded, title=args.title)
     if args.out:
         with open(args.out, "w", encoding="utf-8") as f:

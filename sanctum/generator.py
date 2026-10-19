@@ -1,7 +1,6 @@
 """Generate tailored test cases via an LLM backend, or use built-in seed cases."""
 import json
 import os
-import re
 
 from .llm import chat_completions
 

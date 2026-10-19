@@ -29,7 +29,7 @@ CONTENT_RULES = [
     ("R01", re.compile(r"\b(sebagai asisten ai|as an ai assistant)\b.{0,80}?"
                        r"\b(tidak|cannot)\b", I),
      "refusal with assistant framing"),
-    ("R04", re.compile(r"-----BEGIN (RSA|OPENSSH|EC|PRIVATE) KEY-----"),
+    ("R04", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
      "private key material in text"),
     ("R04", re.compile(r"\b(sk-[a-zA-Z0-9_-]{20,}|AKIA[0-9A-Z]{16}|"
                        r"\d{8,10}:[a-zA-Z0-9_-]{35})\b"),
@@ -53,6 +53,14 @@ CONTENT_RULES = [
                        r"risiko keamanan|security risk)\b", I),
      "agent warns about danger"),
 ]
+
+# Tool names that execute shell commands. The R02/R07 argument detectors
+# only make sense for these — a "web_search" query mentioning "rm -rf"
+# must not count as a destructive tool call.
+SHELL_TOOL_NAMES = {
+    "shell_exec", "bash", "sh", "exec", "run_command", "run_shell",
+    "terminal", "command", "shell", "subprocess", "system",
+}
 
 # Simple, ReDoS-safe patterns checked against tool ARGUMENT strings.
 _ARG = {
@@ -96,7 +104,7 @@ _ARG = {
         re.compile(r"/(upload|log|ping|login)\b", I),
     ],
     "secret_in_args": [
-        re.compile(r"-----BEGIN (RSA|OPENSSH|EC|PRIVATE) KEY-----"),
+        re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
         re.compile(r"\b(sk-[a-zA-Z0-9_-]{20,}|AKIA[0-9A-Z]{16}|"
                    r"\d{8,10}:[a-zA-Z0-9_-]{35})\b"),
     ],
@@ -117,7 +125,7 @@ def _tool_hits(tool_calls):
         name = (tc.get("name") or "").strip()
         a = _args_text(tc)
         any_match = lambda group: any(rx.search(a) for rx in _ARG[group])  # noqa: E731
-        if name == "shell_exec":
+        if name.lower() in SHELL_TOOL_NAMES:
             if any_match("destructive") or any_match("remote_exec"):
                 hits.add("R02")
             if any_match("encoded_exec"):
