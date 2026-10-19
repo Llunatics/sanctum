@@ -1,5 +1,12 @@
 """sanctum CLI: generate / run / grade / report adversarial test cases."""
 import argparse
+
+# Clean exit on broken pipes (e.g. `sanctum report ... | head`).
+try:
+    from signal import SIG_DFL, SIGPIPE, signal
+    signal(SIGPIPE, SIG_DFL)
+except Exception:
+    pass
 import json
 import os
 import sys

@@ -137,3 +137,9 @@ class TestRunCasesValidation(unittest.TestCase):
             self.assertIn("bad cases file", err.getvalue())
         finally:
             os.unlink(p)
+
+
+class TestSigpipe(unittest.TestCase):
+    def test_broken_pipe_no_traceback(self):
+        import signal
+        self.assertEqual(signal.getsignal(signal.SIGPIPE), signal.SIG_DFL)
