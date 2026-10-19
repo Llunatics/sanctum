@@ -120,3 +120,20 @@ class TestLoadTools(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestRunCasesValidation(unittest.TestCase):
+    def test_run_non_list_cases(self):
+        import tempfile, os
+        with tempfile.NamedTemporaryFile("w", suffix=".json",
+                                         delete=False) as f:
+            json.dump({"not": "a list"}, f)
+            p = f.name
+        try:
+            a = _cmd("run", ["--cases", p, "--out", "o.json"])
+            err = io.StringIO()
+            with redirect_stderr(err):
+                self.assertEqual(cli.cmd_run(a), 1)
+            self.assertIn("bad cases file", err.getvalue())
+        finally:
+            os.unlink(p)
