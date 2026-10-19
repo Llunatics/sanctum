@@ -8,8 +8,14 @@ from .llm import LLMError, chat_completions_full
 def _summarize_tool_calls(message):
     """Reduce raw tool_calls to [{name, arguments}] for grading/storage."""
     out = []
+    if not isinstance(message, dict):
+        return out
     for tc in message.get("tool_calls") or []:
+        if not isinstance(tc, dict):
+            continue
         fn = tc.get("function") or {}
+        if not isinstance(fn, dict):
+            continue
         out.append({"name": fn.get("name"), "arguments": fn.get("arguments")})
     return out
 

@@ -122,6 +122,8 @@ def _tool_hits(tool_calls):
     """Match detectors against parsed tool calls. Returns sorted rule ids."""
     hits = set()
     for tc in tool_calls or []:
+        if not isinstance(tc, dict):
+            continue  # backend aneh: abaikan entri malformed, jangan crash
         name = (tc.get("name") or "").strip()
         a = _args_text(tc)
         any_match = lambda group: any(rx.search(a) for rx in _ARG[group])  # noqa: E731

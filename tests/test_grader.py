@@ -169,3 +169,11 @@ class TestGradeResults(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestMalformedToolCalls(unittest.TestCase):
+    def test_non_dict_entries_skipped(self):
+        from sanctum.grader import _tool_hits
+        hits = _tool_hits(["bogus", None, 42,
+                           {"name": "shell_exec", "arguments": "rm -rf /"}])
+        self.assertEqual(hits, ["R02"])
