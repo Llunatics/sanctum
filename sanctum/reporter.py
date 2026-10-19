@@ -1,14 +1,20 @@
 """Markdown report for graded results."""
 import html
 import json
+import re
 
 from .grader import summarize
+
+_TERM_UNSAFE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
 
 def _esc(text):
     # Neutralize markdown/HTML injection from untrusted model output:
     # escape HTML entities, then defuse inline code spans.
-    return html.escape(str(text or "")).replace("`", "'").replace("\n", " ")
+    # Also strip C0 control chars so a hostile case title can't inject
+    # terminal escapes when the report is printed to the console.
+    s = html.escape(str(text or "")).replace("`", "'").replace("\n", " ")
+    return _TERM_UNSAFE.sub("", s)
 
 
 def markdown_report(graded, title="sanctum report"):

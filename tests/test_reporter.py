@@ -60,3 +60,13 @@ class TestReport(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestAnsiInjection(unittest.TestCase):
+    def test_esc_strips_control_chars(self):
+        from sanctum.reporter import _esc
+        out = _esc("a\x1b[31mb\x07c")
+        self.assertFalse(any(ord(c) < 32 or ord(c) == 127 for c in out))
+        self.assertIn("a", out)
+        # HTML escaping still intact
+        self.assertIn("&lt;", _esc("<b>x</b>"))
