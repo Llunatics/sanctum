@@ -50,7 +50,9 @@ def _post_json(url, payload, api_key, timeout):
         with opener.open(req, timeout=timeout) as resp:
             raw = resp.read(MAX_RESPONSE_BYTES).decode("utf-8", errors="replace")
     except urllib.error.HTTPError as e:
-        detail = e.read().decode("utf-8", "replace")[:500]
+        # Cap the error-body read too: a hostile backend could otherwise
+        # make us slurp an unbounded error page into RAM.
+        detail = e.read(8192).decode("utf-8", "replace")[:500]
         raise LLMError("HTTP %s from %s: %s" % (e.code, url, detail))
     except urllib.error.URLError as e:
         raise LLMError("connection failed to %s: %s" % (url, e.reason))

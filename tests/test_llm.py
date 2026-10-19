@@ -49,6 +49,35 @@ def _serve(handler):
     return srv
 
 
+class _BigError(BaseHTTPRequestHandler):
+    def do_POST(self):
+        body = b"x" * (2 * 1024 * 1024)
+        self.send_response(500)
+        self.send_header("Content-Type", "text/plain")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *a):
+        pass
+
+
+class TestErrorBodyCap(unittest.TestCase):
+    def test_huge_error_body_does_not_hang_or_oom(self):
+        srv = _serve(_BigError)
+        try:
+            t0 = __import__("time").time()
+            with self.assertRaises(LLMError) as cm:
+                chat_completions_full(
+                    "http://127.0.0.1:%d/v1" % srv.server_address[1],
+                    "m", [{"role": "user", "content": "hi"}], timeout=10)
+            self.assertIn("HTTP 500", str(cm.exception))
+            # Must fail fast: only the first 8k of the 2MB body is read.
+            self.assertLess(__import__("time").time() - t0, 5)
+        finally:
+            srv.shutdown()
+
+
 class TestUrlChecks(unittest.TestCase):
     def test_non_http_refused(self):
         for bad in ("file:///etc/passwd", "ftp://x/y", "gopher://x",
