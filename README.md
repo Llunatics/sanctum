@@ -90,7 +90,7 @@ A `BLOCKED` means "no bad signal found", not "secure". Review every
 python3 -m unittest discover -s tests -v
 ```
 
-63 tests: unit tests for every module (grader rubric, reporter escaping,
+66 tests: unit tests for every module (grader rubric, reporter escaping,
 LLM redirect hardening, generator validation, CLI error paths) plus an
 end-to-end run against a deterministic stub agent (`tests/stub_agent.py`)
 asserting the expected verdict per case id. No network, no API keys needed.
