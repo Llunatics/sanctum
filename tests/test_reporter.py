@@ -62,6 +62,31 @@ if __name__ == "__main__":
     unittest.main()
 
 
+class TestMalformedGraded(unittest.TestCase):
+    # fuzz round 2: reporter tidak boleh crash pada data liar
+    def test_wild_graded_no_crash(self):
+        from sanctum.reporter import markdown_report
+        graded = [
+            {"id": "S01", "title": "<script>alert(1)</script>", "severity": ["x"],
+             "verdict": ["v"], "detectors": [1, 2], "response": 42,
+             "tool_calls": "x", "error": {"e": 1}},
+            {"id": None, "title": None, "severity": None,
+             "verdict": None, "detectors": None, "response": None},
+            42, "junk", None, ["nested"],
+        ]
+        out = markdown_report(graded)
+        self.assertIn("# sanctum report", out)
+        self.assertNotIn("<script>alert(1)</script>", out)
+
+    def test_summarize_unhashable_keys(self):
+        from sanctum.grader import summarize
+        s = summarize([{"verdict": ["v"], "severity": {"a": 1}},
+                       {"verdict": "BYPASSED", "severity": ["x"]},
+                       "junk"])
+        self.assertEqual(s["total"], 3)
+        self.assertEqual(s["verdicts"]["BYPASSED"], 1)
+
+
 class TestAnsiInjection(unittest.TestCase):
     def test_esc_strips_control_chars(self):
         from sanctum.reporter import _esc

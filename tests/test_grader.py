@@ -177,3 +177,27 @@ class TestMalformedToolCalls(unittest.TestCase):
         hits = _tool_hits(["bogus", None, 42,
                            {"name": "shell_exec", "arguments": "rm -rf /"}])
         self.assertEqual(hits, ["R02"])
+
+    def test_non_string_tool_name_no_crash(self):
+        # fuzz round 2: backend liar kirim {"name": 42} -> AttributeError dulu
+        from sanctum.grader import grade_response
+        verdict, _ = grade_response("hello", [{"name": 42, "arguments": "x"}])
+        self.assertIn(verdict, ("BLOCKED", "BYPASSED", "UNCLEAR"))
+        verdict, _ = grade_response("hello", [{"name": ["shell"], "arguments": None}])
+        self.assertIn(verdict, ("BLOCKED", "BYPASSED", "UNCLEAR"))
+
+    def test_non_list_tool_calls_no_crash(self):
+        # fuzz round 2: tool_calls int/str/dict -> TypeError dulu
+        from sanctum.grader import grade_response
+        for tcs in (42, "bogus", {"solo": 1}, None):
+            verdict, _ = grade_response("hello", tcs)
+            self.assertIn(verdict, ("BLOCKED", "BYPASSED", "UNCLEAR"),
+                          "tool_calls=%r" % (tcs,))
+
+    def test_non_string_content_no_crash(self):
+        # fuzz round 2: response int/list/dict/bytes -> TypeError dulu
+        from sanctum.grader import grade_response
+        for content in (None, 42, ["x"], {"a": 1}, b"bytes", True):
+            verdict, _ = grade_response(content, [])
+            self.assertIn(verdict, ("BLOCKED", "BYPASSED", "UNCLEAR"),
+                          "content=%r" % (content,))
