@@ -119,3 +119,46 @@ class TestRedirects(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestResponseCapAndChoiceOrder(unittest.TestCase):
+    """Deep-8 S18/S19: response-size cap and first-choice selection."""
+
+    def test_read_is_capped_at_max_response_bytes(self):
+        # Deep-8 S18: the client must never ask for more than the 10MB cap.
+        from unittest import mock
+
+        recorded = {}
+
+        class FakeResp:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def read(self, n=-1):
+                recorded["n"] = n
+                return b'{"choices": [{"message": {"content": "hi"}}]}'
+
+        class FakeOpener:
+            def open(self, req, timeout=None):
+                return FakeResp()
+
+        with mock.patch("urllib.request.build_opener",
+                        return_value=FakeOpener()):
+            msg = chat_completions_full("http://127.0.0.1:1/v1", "m",
+                                        [{"role": "user", "content": "hi"}])
+        self.assertEqual(msg["content"], "hi")
+        self.assertLessEqual(recorded["n"], 10 * 1024 * 1024)
+
+    def test_first_choice_is_used(self):
+        # Deep-8 S19: with several choices, the first one wins.
+        from unittest import mock
+        from sanctum import llm
+        body = {"choices": [{"message": {"content": "first"}},
+                           {"message": {"content": "second"}}]}
+        with mock.patch.object(llm, "_post_json", return_value=body):
+            msg = chat_completions_full("http://127.0.0.1:1/v1", "m",
+                                        [{"role": "user", "content": "hi"}])
+        self.assertEqual(msg["content"], "first")
